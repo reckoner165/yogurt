@@ -12,7 +12,7 @@ A lightweight macOS media player that pairs any media file with timestamped mark
 Requires macOS 13+ and the Xcode Command Line Tools (full Xcode not needed):
 
 ```sh
-git clone <repo-url> yogurt && cd yogurt
+git clone https://github.com/reckoner165/yogurt.git && cd yogurt
 ./Scripts/make-app.sh    # produces Yogurt.app
 ```
 
