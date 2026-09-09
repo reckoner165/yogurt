@@ -57,16 +57,24 @@ private struct NotesPane: View {
     let onSeek: (Double) -> Void
 
     var body: some View {
-        NotesEditor(
-            text: Binding(
-                get: { notes.text },
-                set: { newValue in
-                    notes.text = newValue
-                    notes.noteChanged()
-                }
-            ),
-            onSeek: onSeek
-        )
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Notes")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            Divider()
+            NotesEditor(
+                text: Binding(
+                    get: { notes.text },
+                    set: { newValue in
+                        notes.text = newValue
+                        notes.noteChanged()
+                    }
+                ),
+                onSeek: onSeek
+            )
+        }
     }
 }
 
