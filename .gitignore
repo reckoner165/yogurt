@@ -1,0 +1,4 @@
+.build/
+.swiftpm/
+Yogurt.app/
+.DS_Store
