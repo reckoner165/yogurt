@@ -40,6 +40,11 @@ struct ContentView: View {
                 }
                 .help("Insert current playback time into notes (⌘T)")
                 .disabled(model.mediaURL == nil)
+                .onHover { hovering in
+                    model.status.hint(
+                        hovering ? "Insert current playback time into notes (⌘T)" : nil
+                    )
+                }
             }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
