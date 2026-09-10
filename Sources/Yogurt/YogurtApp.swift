@@ -6,6 +6,10 @@ struct YogurtApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var model = AppModel.shared
 
+    init() {
+        Fonts.registerBundled()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

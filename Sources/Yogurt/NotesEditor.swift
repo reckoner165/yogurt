@@ -55,8 +55,6 @@ struct NotesEditor: NSViewRepresentable {
         weak var textView: NSTextView?
         private var insertObserver: NSObjectProtocol?
 
-        private let baseFont = NSFont.systemFont(ofSize: 13)
-
         init(_ parent: NotesEditor) {
             self.parent = parent
             super.init()
@@ -93,24 +91,9 @@ struct NotesEditor: NSViewRepresentable {
 
         func applyHighlighting() {
             guard let textView, let storage = textView.textStorage else { return }
-            let fullRange = NSRange(location: 0, length: storage.length)
-            let baseAttributes: [NSAttributedString.Key: Any] = [
-                .font: baseFont,
-                .foregroundColor: NSColor.textColor,
-            ]
-            storage.beginEditing()
-            storage.removeAttribute(.link, range: fullRange)
-            storage.addAttributes(baseAttributes, range: fullRange)
-            let matches = NotesEditor.timestampRegex.matches(in: storage.string, range: fullRange)
-            for match in matches {
-                let seconds = Self.seconds(from: match, in: storage.string)
-                if let url = URL(string: "yogurt://seek?t=\(seconds)") {
-                    storage.addAttribute(.link, value: url, range: match.range)
-                }
-            }
-            storage.endEditing()
-            // Keep typing after a timestamp from inheriting the link style.
-            textView.typingAttributes = baseAttributes
+            MarkdownHighlighter.highlight(storage)
+            // Keep typing after a styled span from inheriting its attributes.
+            textView.typingAttributes = MarkdownHighlighter.baseAttributes
         }
 
         static func seconds(from match: NSTextCheckingResult, in string: String) -> Double {
