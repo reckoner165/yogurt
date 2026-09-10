@@ -10,18 +10,34 @@ extension Notification.Name {
 struct NotesEditor: NSViewRepresentable {
     @Binding var text: String
     var onSeek: (Double) -> Void
+    var onHoverTimestamp: (Double?) -> Void
 
     static let timestampRegex = try! NSRegularExpression(
         pattern: #"\[(?:(\d+):)?(\d{1,2}):(\d{2})(?:\.(\d+))?\]"#
     )
+
+    static func seekSeconds(from url: URL) -> Double? {
+        guard url.scheme == "yogurt",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let value = components.queryItems?.first(where: { $0.name == "t" })?.value
+        else { return nil }
+        return Double(value)
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        let textView = scrollView.documentView as! NSTextView
+        let textView = NotesTextView()
+        textView.minSize = .zero
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+
         textView.delegate = context.coordinator
         textView.isRichText = false
         textView.allowsUndo = true
@@ -35,6 +51,16 @@ struct NotesEditor: NSViewRepresentable {
             .underlineStyle: NSUnderlineStyle.single.rawValue,
             .cursor: NSCursor.pointingHand,
         ]
+        textView.onHoverLink = { [weak coordinator = context.coordinator] url in
+            coordinator?.reportHover(url)
+        }
+
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.documentView = textView
+
         context.coordinator.textView = textView
         textView.string = text
         context.coordinator.applyHighlighting()
@@ -54,6 +80,7 @@ struct NotesEditor: NSViewRepresentable {
         var parent: NotesEditor
         weak var textView: NSTextView?
         private var insertObserver: NSObjectProtocol?
+        private var lastHoverSeconds: Double?
 
         init(_ parent: NotesEditor) {
             self.parent = parent
@@ -81,12 +108,18 @@ struct NotesEditor: NSViewRepresentable {
         }
 
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-            guard let url = link as? URL, url.scheme == "yogurt",
-                  let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-                  let value = components.queryItems?.first(where: { $0.name == "t" })?.value,
-                  let seconds = Double(value) else { return false }
+            guard let url = link as? URL, let seconds = NotesEditor.seekSeconds(from: url) else {
+                return false
+            }
             parent.onSeek(seconds)
             return true
+        }
+
+        func reportHover(_ url: URL?) {
+            let seconds = url.flatMap(NotesEditor.seekSeconds(from:))
+            guard seconds != lastHoverSeconds else { return }
+            lastHoverSeconds = seconds
+            parent.onHoverTimestamp(seconds)
         }
 
         func applyHighlighting() {
@@ -107,5 +140,51 @@ struct NotesEditor: NSViewRepresentable {
             let fraction = Double("0.\(group(4) ?? "0")") ?? 0
             return hours * 3600 + minutes * 60 + seconds + fraction
         }
+    }
+}
+
+/// NSTextView that reports which link (if any) is under the mouse.
+final class NotesTextView: NSTextView {
+    var onHoverLink: ((URL?) -> Void)?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas where (area.userInfo?["yogurtHover"] as? Bool) == true {
+            removeTrackingArea(area)
+        }
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: ["yogurtHover": true]
+        ))
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        onHoverLink?(linkURL(at: event))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        onHoverLink?(nil)
+    }
+
+    private func linkURL(at event: NSEvent) -> URL? {
+        guard let layoutManager, let textContainer, let storage = textStorage,
+              storage.length > 0 else { return nil }
+        let point = convert(event.locationInWindow, from: nil)
+        let containerPoint = NSPoint(
+            x: point.x - textContainerOrigin.x,
+            y: point.y - textContainerOrigin.y
+        )
+        var fraction: CGFloat = 0
+        let index = layoutManager.characterIndex(
+            for: containerPoint,
+            in: textContainer,
+            fractionOfDistanceBetweenInsertionPoints: &fraction
+        )
+        guard index < storage.length else { return nil }
+        return storage.attribute(.link, at: index, effectiveRange: nil) as? URL
     }
 }

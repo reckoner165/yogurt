@@ -5,19 +5,29 @@ struct ContentView: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        Group {
-            if model.mediaURL != nil {
-                HSplitView {
-                    PlayerView(player: model.player.player)
-                        .frame(minWidth: 320, minHeight: 240)
-                    NotesPane(notes: model.notes) { seconds in
-                        model.player.seek(to: seconds)
+        VStack(spacing: 0) {
+            Group {
+                if model.mediaURL != nil {
+                    HSplitView {
+                        PlayerView(player: model.player.player)
+                            .frame(minWidth: 320, minHeight: 240)
+                        NotesPane(
+                            notes: model.notes,
+                            onSeek: { model.seek(to: $0) },
+                            onHoverTimestamp: { seconds in
+                                model.status.hint(seconds.map {
+                                    "Click to jump to \(PlayerController.format($0))"
+                                })
+                            }
+                        )
+                        .frame(minWidth: 260)
                     }
-                    .frame(minWidth: 260)
+                } else {
+                    EmptyStateView()
                 }
-            } else {
-                EmptyStateView()
             }
+            Divider()
+            StatusBarView(status: model.status)
         }
         .frame(minWidth: 700, minHeight: 400)
         .navigationTitle(model.mediaURL?.lastPathComponent ?? "Yogurt")
@@ -55,6 +65,7 @@ struct ContentView: View {
 private struct NotesPane: View {
     @ObservedObject var notes: NotesStore
     let onSeek: (Double) -> Void
+    let onHoverTimestamp: (Double?) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -72,9 +83,28 @@ private struct NotesPane: View {
                         notes.noteChanged()
                     }
                 ),
-                onSeek: onSeek
+                onSeek: onSeek,
+                onHoverTimestamp: onHoverTimestamp
             )
         }
+    }
+}
+
+private struct StatusBarView: View {
+    @ObservedObject var status: StatusCenter
+
+    var body: some View {
+        HStack {
+            Text(status.display)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(.bar)
     }
 }
 

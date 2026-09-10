@@ -8,15 +8,31 @@ final class AppModel: ObservableObject {
 
     let player = PlayerController()
     let notes = NotesStore()
+    let status = StatusCenter()
 
     @Published private(set) var mediaURL: URL?
+
+    private init() {
+        status.setIdle("No file open — ⌘O to open")
+        notes.onStatus = { [weak self] message in
+            self?.status.transient(message)
+        }
+    }
 
     func open(_ url: URL) {
         notes.flushNow()
         mediaURL = url
         player.load(url: url)
+        let notesURL = NotesStore.notesURL(for: url)
+        let hadNotes = FileManager.default.fileExists(atPath: notesURL.path)
         notes.open(mediaURL: url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
+        status.setIdle("notes/\(notesURL.lastPathComponent)")
+        status.transient(
+            hadNotes
+                ? "Opened \(url.lastPathComponent) — existing notes loaded"
+                : "Opened \(url.lastPathComponent) — new notes file"
+        )
     }
 
     func openPanel() {
@@ -30,10 +46,17 @@ final class AppModel: ObservableObject {
 
     func insertTimestamp() {
         guard mediaURL != nil else { return }
+        let marker = player.timestampMarker
         NotificationCenter.default.post(
             name: .yogurtInsertText,
             object: nil,
-            userInfo: ["text": player.timestampMarker + " "]
+            userInfo: ["text": marker + " "]
         )
+        status.transient("Inserted \(marker)")
+    }
+
+    func seek(to seconds: Double) {
+        player.seek(to: seconds)
+        status.transient("Jumped to \(PlayerController.format(seconds))")
     }
 }

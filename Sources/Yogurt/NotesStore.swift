@@ -6,6 +6,9 @@ import Foundation
 final class NotesStore: ObservableObject {
     @Published var text: String = ""
 
+    /// Status messages for the UI (autosave confirmations, errors).
+    var onStatus: ((String) -> Void)?
+
     private(set) var notesURL: URL?
 
     private var saveWorkItem: DispatchWorkItem?
@@ -56,8 +59,11 @@ final class NotesStore: ObservableObject {
             )
             try Data(text.utf8).write(to: url, options: .atomic)
             lastSavedText = text
+            let time = Date().formatted(date: .omitted, time: .standard)
+            onStatus?("Autosaved \(url.lastPathComponent) · \(time)")
         } catch {
             NSLog("Yogurt: failed to save notes to \(url.path): \(error)")
+            onStatus?("⚠︎ Could not save notes: \(error.localizedDescription)")
         }
     }
 }
