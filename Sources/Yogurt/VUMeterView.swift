@@ -1,15 +1,26 @@
 import SwiftUI
 
-/// Stereo level meter: two color-coded bars (RMS fill + peak-hold line), an
-/// evenly spaced dB scale, and a numeric peak readout. Driven by an `AudioLevelMeter`.
+/// Stereo level meter, Live-style: bright RMS fill, a darker shade up to the live
+/// peak, and a line at the highest recent peak; plus a dB scale and a numeric
+/// readout of that held peak. Driven by an `AudioLevelMeter`.
 struct VUMeterView: View {
     @ObservedObject var meter: AudioLevelMeter
+
+    var body: some View {
+        VUMeterContent(levels: meter.levels)
+    }
+}
+
+/// Draws the meter for a given pair of levels (split out so it can be rendered
+/// without live audio).
+struct VUMeterContent: View {
+    let levels: [ChannelLevel]
 
     private let barWidth: CGFloat = 18
     private let scaleWidth: CGFloat = 26
 
     var body: some View {
-        let levels = meter.levels.count >= 2 ? meter.levels : [.silent, .silent]
+        let levels = levels.count >= 2 ? levels : [.silent, .silent]
         // Bars and readouts are centered; the scale hangs off the bars' left edge.
         VStack(spacing: 3) {
             HStack(spacing: 6) {
@@ -28,7 +39,8 @@ struct VUMeterView: View {
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.top, 20)
+        .padding(.bottom, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Match AVPlayerView's audio-only placeholder grey; force dark so labels stay legible.
         .background(Theme.mediaSurface)
@@ -36,9 +48,10 @@ struct VUMeterView: View {
     }
 
     private func readout(_ level: ChannelLevel) -> some View {
-        Text(level.peak <= MeterMetrics.floorDB ? "-∞" : String(format: "%.0f", level.peak))
+        // Round before formatting so -0.4 reads "0", not "-0".
+        Text(level.hold <= MeterMetrics.floorDB ? "-∞" : "\(Int(level.hold.rounded()))")
             .font(.system(size: 8, design: .monospaced))
-            .foregroundStyle(level.peak >= MeterMetrics.clipDB ? Color.red : MeterMetrics.labelColor)
+            .foregroundStyle(level.hold >= MeterMetrics.clipDB ? Color.red : MeterMetrics.labelColor)
     }
 }
 
@@ -58,14 +71,15 @@ private enum MeterMetrics {
         return CGFloat((clamped - floorDB) / (0 - floorDB))
     }
 
-    /// Bottom→top gradient: green up to -18 dB, yellow to -6 dB, red above.
+    /// Bottom→top colour ramp, blended smoothly: solid green through the quiet
+    /// range, then green→yellow→orange→red approaching 0 dBFS.
     static let gradient = LinearGradient(
         stops: [
             .init(color: .green, location: 0.0),
-            .init(color: .green, location: fraction(-18)),
-            .init(color: .yellow, location: fraction(-18) + 0.01),
-            .init(color: .yellow, location: fraction(-6)),
-            .init(color: .red, location: fraction(-6) + 0.01),
+            .init(color: .green, location: fraction(-24)),
+            .init(color: .yellow, location: fraction(-12)),
+            .init(color: .orange, location: fraction(-6)),
+            .init(color: .red, location: fraction(-1)),
             .init(color: .red, location: 1.0),
         ],
         startPoint: .bottom,
@@ -73,7 +87,8 @@ private enum MeterMetrics {
     )
 }
 
-/// A single vertical bar: dim track, gradient RMS fill, peak-hold line.
+/// A single vertical bar: dim track, darker live-peak shade, bright RMS fill,
+/// peak-hold line.
 private struct MeterBar: View {
     let level: ChannelLevel
 
@@ -82,20 +97,32 @@ private struct MeterBar: View {
             let h = geo.size.height
             let rmsFrac = MeterMetrics.fraction(level.rms)
             let peakFrac = MeterMetrics.fraction(level.peak)
+            let holdFrac = MeterMetrics.fraction(level.hold)
             ZStack(alignment: .bottom) {
                 Rectangle().fill(Color.black.opacity(0.3))
 
+                // Live peak: the same ramp, dimmed, behind the RMS fill.
                 Rectangle()
                     .fill(MeterMetrics.gradient)
-                    .frame(maxHeight: .infinity)
+                    .opacity(0.4)
+                    .mask(alignment: .bottom) {
+                        Rectangle().frame(height: h * peakFrac)
+                    }
+
+                Rectangle()
+                    .fill(MeterMetrics.gradient)
                     .mask(alignment: .bottom) {
                         Rectangle().frame(height: h * rmsFrac)
                     }
 
-                Rectangle()
-                    .fill(level.peak >= MeterMetrics.clipDB ? Color.red : Color.white.opacity(0.9))
-                    .frame(height: 2)
-                    .offset(y: -h * peakFrac + 1)
+                // Highest recent peak. Hidden at the floor so silence shows an empty bar.
+                if level.hold > MeterMetrics.floorDB {
+                    Rectangle()
+                        .fill(level.hold >= MeterMetrics.clipDB ? Color.red : Color.white.opacity(0.9))
+                        .frame(height: 2)
+                        // Centre on the level, kept inside the bar like the end ticks.
+                        .offset(y: -min(max(h * holdFrac, 1), h - 1) + 1)
+                }
             }
             .clipShape(RoundedRectangle(cornerRadius: 2))
         }

@@ -3,11 +3,17 @@ import Accelerate
 import Combine
 import os
 
-/// One channel's instantaneous levels, in dBFS (0 = full scale, floor = -60).
+/// One channel's display levels, in dBFS (0 = full scale, floor = -60).
 struct ChannelLevel: Equatable {
+    /// Average loudness.
     var rms: Float
+    /// Live peak, with a short release so it reads as a shade rather than flicker.
     var peak: Float
-    static let silent = ChannelLevel(rms: AudioLevelMeter.floorDB, peak: AudioLevelMeter.floorDB)
+    /// Highest recent peak: held briefly, then falls.
+    var hold: Float
+    static let silent = ChannelLevel(
+        rms: AudioLevelMeter.floorDB, peak: AudioLevelMeter.floorDB, hold: AudioLevelMeter.floorDB
+    )
 }
 
 /// Reads live audio levels off the player's audio without disturbing playback.
@@ -27,10 +33,14 @@ final class AudioLevelMeter: ObservableObject {
     private var audioMix: AVMutableAudioMix?
     private weak var currentItem: AVPlayerItem?
     private var displayTimer: Timer?
-    private var heldPeakDB: [Float] = [floorDB, floorDB]
+    private var peakDB: [Float] = [floorDB, floorDB]
+    private var holdDB: [Float] = [floorDB, floorDB]
+    private var holdTicksLeft: [Int] = [0, 0]
 
     private let refreshInterval = 1.0 / 60.0
-    private let peakDecayPerSecond: Float = 12 // dB/sec fall-off of the peak-hold line
+    private let peakReleasePerSecond: Float = 24 // dB/sec fall-off of the live-peak shade
+    private let holdSeconds = 1.5                 // how long the peak-hold line stays put
+    private let holdFallPerSecond: Float = 12     // dB/sec fall-off of the line once released
 
     // MARK: Tap lifecycle
 
@@ -105,26 +115,39 @@ final class AudioLevelMeter: ObservableObject {
     func stopMetering() {
         displayTimer?.invalidate()
         displayTimer = nil
-        heldPeakDB = [Self.floorDB, Self.floorDB]
+        peakDB = [Self.floorDB, Self.floorDB]
+        holdDB = [Self.floorDB, Self.floorDB]
+        holdTicksLeft = [0, 0]
         levels = [.silent, .silent]
     }
 
     private func tick() {
         guard let storage else { return }
         let snap = storage.read()
-        let decayPerTick = peakDecayPerSecond * Float(refreshInterval)
+        let peakRelease = peakReleasePerSecond * Float(refreshInterval)
+        let holdFall = holdFallPerSecond * Float(refreshInterval)
+        let holdTicks = Int(holdSeconds / refreshInterval)
 
         var next: [ChannelLevel] = []
         for ch in 0..<2 {
             let src = snap.count <= 1 ? 0 : ch
             let rmsDB = Self.toDB(snap.rms[src])
-            let peakDB = Self.toDB(snap.peak[src])
-            if peakDB >= heldPeakDB[ch] {
-                heldPeakDB[ch] = peakDB
+            let nowDB = Self.toDB(snap.peak[src])
+
+            // Live peak: instant attack, steady release.
+            peakDB[ch] = max(nowDB, peakDB[ch] - peakRelease)
+
+            // Peak-hold line: latch new highs, wait, then fall (never below the live peak).
+            if peakDB[ch] >= holdDB[ch] {
+                holdDB[ch] = peakDB[ch]
+                holdTicksLeft[ch] = holdTicks
+            } else if holdTicksLeft[ch] > 0 {
+                holdTicksLeft[ch] -= 1
             } else {
-                heldPeakDB[ch] = max(peakDB, heldPeakDB[ch] - decayPerTick)
+                holdDB[ch] = max(peakDB[ch], holdDB[ch] - holdFall)
             }
-            next.append(ChannelLevel(rms: rmsDB, peak: heldPeakDB[ch]))
+
+            next.append(ChannelLevel(rms: rmsDB, peak: peakDB[ch], hold: holdDB[ch]))
         }
         levels = next
     }
