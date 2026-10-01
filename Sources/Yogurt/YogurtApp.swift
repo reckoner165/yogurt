@@ -29,6 +29,13 @@ struct YogurtApp: App {
                 .keyboardShortcut("t")
                 .disabled(model.mediaURL == nil)
             }
+            CommandGroup(after: .toolbar) {
+                Button(model.showMeter ? "Hide Audio Meter" : "Show Audio Meter") {
+                    model.toggleMeter()
+                }
+                .keyboardShortcut("l")
+                .disabled(model.mediaURL == nil)
+            }
         }
     }
 }

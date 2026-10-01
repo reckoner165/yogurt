@@ -11,6 +11,10 @@ struct ContentView: View {
                     HSplitView {
                         PlayerView(player: model.player.player)
                             .frame(minWidth: 320, minHeight: 240)
+                        if model.showMeter {
+                            VUMeterView(meter: model.player.meter)
+                                .frame(minWidth: 96, idealWidth: 110, maxWidth: 160)
+                        }
                         NotesPane(
                             notes: model.notes,
                             onSeek: { model.seek(to: $0) },
@@ -43,6 +47,22 @@ struct ContentView: View {
                 .onHover { hovering in
                     model.status.hint(
                         hovering ? "Insert current playback time into notes (⌘T)" : nil
+                    )
+                }
+
+                Button {
+                    model.toggleMeter()
+                } label: {
+                    Label(
+                        "Audio Meter",
+                        systemImage: model.showMeter ? "waveform.circle.fill" : "waveform"
+                    )
+                }
+                .help("Toggle stereo audio meter (⌘L)")
+                .disabled(model.mediaURL == nil)
+                .onHover { hovering in
+                    model.status.hint(
+                        hovering ? "Toggle stereo audio meter (⌘L)" : nil
                     )
                 }
             }
@@ -79,6 +99,8 @@ private struct NotesPane: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.notesSurface)
             Divider()
             NotesEditor(
                 text: Binding(
@@ -109,7 +131,7 @@ private struct StatusBarView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .background(.bar)
+        .background(Theme.notesSurface)
     }
 }
 
