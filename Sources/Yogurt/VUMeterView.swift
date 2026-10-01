@@ -46,9 +46,11 @@ struct VUMeterView: View {
 private enum MeterMetrics {
     static let floorDB: Float = AudioLevelMeter.floorDB
     static let clipDB: Float = -1
-    /// Scale ticks, scale numbers and peak readouts — near-black ink on the grey surface.
-    static let labelColor = Color(white: 0.1)
-    static let ticks: [Int] = Array(stride(from: 0, through: -60, by: -10))
+    /// Scale ticks, scale numbers and peak readouts — solid enough to read on the grey surface.
+    static let labelColor = Color.white.opacity(0.75)
+    static let ticks: [Int] = Array(stride(from: 0, through: -60, by: -12))
+    /// Every other tick gets a number, starting at 0.
+    static func isLabeled(_ db: Int) -> Bool { db % 24 == 0 }
 
     /// Fraction 0 (floor) ... 1 (0 dBFS) up the bar.
     static func fraction(_ db: Float) -> CGFloat {
@@ -124,14 +126,16 @@ private struct ScaleColumn: View {
                     .frame(width: tickLength, height: tickThickness)
                     .position(x: w - tickLength / 2, y: tickY)
 
-                Text("\(db)")
-                    .font(.system(size: 8, design: .monospaced))
-                    .foregroundStyle(MeterMetrics.labelColor)
-                    .frame(width: labelWidth, alignment: .trailing)
-                    .position(
-                        x: labelWidth / 2,
-                        y: min(max(y, digitHalfHeight), h - digitHalfHeight)
-                    )
+                if MeterMetrics.isLabeled(db) {
+                    Text("\(db)")
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(MeterMetrics.labelColor)
+                        .frame(width: labelWidth, alignment: .trailing)
+                        .position(
+                            x: labelWidth / 2,
+                            y: min(max(y, digitHalfHeight), h - digitHalfHeight)
+                        )
+                }
             }
         }
     }
