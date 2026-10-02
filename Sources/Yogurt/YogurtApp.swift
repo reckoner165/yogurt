@@ -14,6 +14,11 @@ struct YogurtApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(model)
+                // Finder "Open With" / double-click. SwiftUI consumes the open
+                // event, so AppDelegate.application(_:open:) never sees the URLs.
+                .onOpenURL { model.open($0) }
+                // Reuse the existing window instead of spawning a new one.
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
         }
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -46,11 +51,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // (outside a .app bundle).
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-    }
-
-    func application(_ application: NSApplication, open urls: [URL]) {
-        guard let url = urls.first else { return }
-        AppModel.shared.open(url)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
