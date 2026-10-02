@@ -11,6 +11,7 @@ final class AppModel: ObservableObject {
     let status = StatusCenter()
 
     @Published private(set) var mediaURL: URL?
+    @Published private(set) var showMeter = false
 
     private init() {
         status.setIdle("No file open — ⌘O to open")
@@ -53,6 +54,16 @@ final class AppModel: ObservableObject {
             userInfo: ["text": marker + " "]
         )
         status.transient("Inserted \(marker)")
+    }
+
+    func toggleMeter() {
+        showMeter.toggle()
+        if showMeter {
+            player.meter.startMetering()
+        } else {
+            player.meter.stopMetering()
+        }
+        status.transient(showMeter ? "Audio meter on" : "Audio meter off")
     }
 
     func seek(to seconds: Double) {

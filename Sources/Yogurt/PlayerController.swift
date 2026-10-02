@@ -6,6 +6,7 @@ import Combine
 @MainActor
 final class PlayerController: ObservableObject {
     let player = AVPlayer()
+    let meter = AudioLevelMeter()
 
     @Published private(set) var currentTime: Double = 0
 
@@ -25,7 +26,9 @@ final class PlayerController: ObservableObject {
     }
 
     func load(url: URL) {
-        player.replaceCurrentItem(with: AVPlayerItem(url: url))
+        let item = AVPlayerItem(url: url)
+        player.replaceCurrentItem(with: item)
+        meter.attach(to: item, asset: item.asset)
         player.play()
     }
 
