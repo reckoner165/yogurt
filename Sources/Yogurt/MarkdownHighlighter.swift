@@ -5,11 +5,32 @@ import AppKit
 /// selection are unaffected. Timestamp links are applied last so they always win.
 enum MarkdownHighlighter {
     static var baseAttributes: [NSAttributedString.Key: Any] {
-        [.font: Fonts.regular, .foregroundColor: NSColor.textColor]
+        [.font: Fonts.regular, .foregroundColor: Theme.Notes.body, .paragraphStyle: NSParagraphStyle.default]
     }
 
-    private static let syntaxColor = NSColor.tertiaryLabelColor
-    private static let accentColor = NSColor.controlAccentColor
+    private static let syntaxColor = Theme.Notes.syntax
+    private static let accentColor = Theme.Notes.listMarker
+
+    private static func headingColor(level: Int) -> NSColor {
+        switch level {
+        case 1: return Theme.Notes.heading1
+        case 2: return Theme.Notes.heading2
+        default: return Theme.Notes.sage
+        }
+    }
+
+    /// Wrapped lines of a list item line up with its text, not its marker.
+    private static func hangingIndent(for prefix: String) -> NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        style.headIndent = (prefix as NSString).size(withAttributes: [.font: Fonts.regular]).width
+        return style
+    }
+
+    private static let headingStyle: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.paragraphSpacingBefore = 8
+        return style
+    }()
 
     private static func regex(_ pattern: String) -> NSRegularExpression {
         try! NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines])
@@ -23,6 +44,8 @@ enum MarkdownHighlighter {
     private static let inlineCode = regex(#"`[^`\n]+`"#)
     private static let codeFence = regex(#"^```[^\n]*\n[\s\S]*?^```[ \t]*$"#)
     private static let mdLink = regex(#"\[([^\]\n]*)\]\(([^)\n]*)\)"#)
+    private static let strikeSpan = regex(#"(~~)(?=\S)(.+?)(?<=\S)~~"#)
+    private static let taskItem = regex(#"^([ \t]*[-*+][ \t])(\[([ xX])\])[ \t](.*)$"#)
 
     static func highlight(_ storage: NSTextStorage, seekURLScheme: String = "yogurt") {
         let text = storage.string
@@ -31,7 +54,10 @@ enum MarkdownHighlighter {
         storage.beginEditing()
         storage.removeAttribute(.link, range: fullRange)
         storage.removeAttribute(.backgroundColor, range: fullRange)
+        storage.removeAttribute(.underlineStyle, range: fullRange)
+        storage.removeAttribute(.strikethroughStyle, range: fullRange)
         storage.addAttributes(baseAttributes, range: fullRange)
+        let nsText = text as NSString
 
         italicSpan.matches(in: text, range: fullRange).forEach { match in
             storage.addAttribute(.font, value: Fonts.italic, range: match.range(at: 2))
@@ -46,21 +72,47 @@ enum MarkdownHighlighter {
             let closer = NSRange(location: match.range.upperBound - 2, length: 2)
             storage.addAttribute(.foregroundColor, value: syntaxColor, range: closer)
         }
+        strikeSpan.matches(in: text, range: fullRange).forEach { match in
+            storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: match.range(at: 2))
+            storage.addAttribute(.foregroundColor, value: syntaxColor, range: match.range(at: 1))
+            let closer = NSRange(location: match.range.upperBound - 2, length: 2)
+            storage.addAttribute(.foregroundColor, value: syntaxColor, range: closer)
+        }
         blockquote.matches(in: text, range: fullRange).forEach { match in
             storage.addAttribute(.font, value: Fonts.italic, range: match.range)
-            storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: match.range)
+            storage.addAttribute(.foregroundColor, value: Theme.Notes.sage, range: match.range)
         }
         heading.matches(in: text, range: fullRange).forEach { match in
             let level = match.range(at: 1).length
             storage.addAttribute(.font, value: Fonts.heading(level: level), range: match.range)
+            storage.addAttribute(.foregroundColor, value: headingColor(level: level), range: match.range(at: 2))
             storage.addAttribute(.foregroundColor, value: syntaxColor, range: match.range(at: 1))
+            storage.addAttribute(.paragraphStyle, value: headingStyle, range: nsText.paragraphRange(for: match.range))
         }
         listMarker.matches(in: text, range: fullRange).forEach { match in
             storage.addAttribute(.foregroundColor, value: accentColor, range: match.range(at: 1))
+            storage.addAttribute(.paragraphStyle,
+                                 value: hangingIndent(for: nsText.substring(with: match.range)),
+                                 range: nsText.paragraphRange(for: match.range))
+        }
+        taskItem.matches(in: text, range: fullRange).forEach { match in
+            // Indent wrapped lines past the box too: "- [ ] ".
+            let prefix = NSRange(location: match.range.location,
+                                 length: match.range(at: 4).location - match.range.location)
+            storage.addAttribute(.paragraphStyle,
+                                 value: hangingIndent(for: nsText.substring(with: prefix)),
+                                 range: nsText.paragraphRange(for: match.range))
+            storage.addAttribute(.foregroundColor, value: accentColor, range: match.range(at: 2))
+            if nsText.substring(with: match.range(at: 3)) != " " {
+                storage.addAttribute(.foregroundColor, value: Theme.Notes.done, range: match.range(at: 4))
+                storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: match.range(at: 4))
+            }
         }
         mdLink.matches(in: text, range: fullRange).forEach { match in
-            storage.addAttribute(.foregroundColor, value: NSColor.linkColor, range: match.range(at: 1))
-            storage.addAttribute(.foregroundColor, value: syntaxColor, range: match.range(at: 2))
+            storage.addAttribute(.foregroundColor, value: syntaxColor, range: match.range)
+            storage.addAttribute(.foregroundColor, value: Theme.Notes.link, range: match.range(at: 1))
+            storage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: match.range(at: 1))
+            storage.addAttribute(.foregroundColor, value: Theme.Notes.sage, range: match.range(at: 2))
         }
         codeFence.matches(in: text, range: fullRange).forEach { match in
             storage.addAttributes(codeAttributes, range: match.range)
@@ -82,8 +134,8 @@ enum MarkdownHighlighter {
     private static var codeAttributes: [NSAttributedString.Key: Any] {
         [
             .font: Fonts.regular,
-            .foregroundColor: NSColor.textColor,
-            .backgroundColor: NSColor.textColor.withAlphaComponent(0.07),
+            .foregroundColor: Theme.Notes.body,
+            .backgroundColor: Theme.Notes.body.withAlphaComponent(0.07),
         ]
     }
 }

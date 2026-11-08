@@ -47,7 +47,7 @@ struct NotesEditor: NSViewRepresentable {
         textView.isAutomaticTextReplacementEnabled = false
         textView.textContainerInset = NSSize(width: 12, height: 12)
         textView.linkTextAttributes = [
-            .foregroundColor: NSColor.controlAccentColor,
+            .foregroundColor: Theme.Notes.link,
             .underlineStyle: NSUnderlineStyle.single.rawValue,
             .cursor: NSCursor.pointingHand,
         ]
@@ -60,6 +60,9 @@ struct NotesEditor: NSViewRepresentable {
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
         scrollView.documentView = textView
+        // The notes palette only has contrast on a dark background.
+        scrollView.appearance = NSAppearance(named: .darkAqua)
+        textView.insertionPointColor = Theme.Notes.body
 
         context.coordinator.textView = textView
         textView.string = text

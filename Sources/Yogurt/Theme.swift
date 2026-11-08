@@ -9,6 +9,33 @@ enum Theme {
     /// Matches the notes NSTextView's own background (#1e1e1e in dark mode).
     static let notesSurface = Color(nsColor: .textBackgroundColor)
 
+    /// Notes palette, sampled from the player backdrop artwork. Contrast is
+    /// against the dark editor background (#1E1E1E); the editor is forced dark
+    /// because most of these fail on white.
+    enum Notes {
+        private static func hex(_ v: Int) -> NSColor {
+            NSColor(srgbRed: CGFloat((v >> 16) & 0xFF) / 255,
+                    green: CGFloat((v >> 8) & 0xFF) / 255,
+                    blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+        }
+        /// Body text — 14.7:1
+        static let body = hex(0xF5F0EA)
+        /// H1 — 12.7:1
+        static let heading1 = hex(0xCEEE67)
+        /// H2 — 12.1:1
+        static let heading2 = hex(0x6DF85D)
+        /// H3–H6, blockquotes, link URLs — 7.3:1
+        static let sage = hex(0x7AB990)
+        /// List bullets/numbers, task boxes — 5.8:1
+        static let listMarker = hex(0x56AB58)
+        /// Links and timestamps (always underlined too) — 5.8:1
+        static let link = hex(0x24AC8C)
+        /// Markdown syntax characters only (#, **, [ ], ( )); dim on purpose — 2.7:1
+        static let syntax = hex(0x6B6335)
+        /// Text of checked tasks (body at 55%)
+        static let done = body.withAlphaComponent(0.55)
+    }
+
     /// Artwork behind the player's audio-only "Q". Looked up like Fonts:
     /// the .app's Resources, else <repo>/Resources for a bare binary.
     static let playerBackdrop: NSImage? = {

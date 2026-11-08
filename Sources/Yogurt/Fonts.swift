@@ -3,7 +3,7 @@ import AppKit
 /// Registers the bundled IBM Plex Mono faces for this process and vends them
 /// with a system-monospace fallback if registration fails.
 enum Fonts {
-    static let size: CGFloat = 13
+    static let size: CGFloat = 11
 
     static func registerBundled() {
         var candidates: [URL] = []
@@ -46,7 +46,7 @@ enum Fonts {
     static let boldItalic = font("IBMPlexMono-BoldItalic", fallbackWeight: .bold, italic: true)
 
     static func heading(level: Int) -> NSFont {
-        let headingSize: CGFloat = level == 1 ? 17 : (level == 2 ? 15 : size)
+        let headingSize: CGFloat = level == 1 ? size + 4 : (level == 2 ? size + 2 : size)
         if let font = NSFont(name: "IBMPlexMono-Bold", size: headingSize) { return font }
         return NSFont.monospacedSystemFont(ofSize: headingSize, weight: .bold)
     }

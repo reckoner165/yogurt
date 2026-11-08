@@ -39,6 +39,8 @@ struct ContentView: View {
                             }
                         )
                         .frame(minWidth: 260)
+                        // Header and File Info match the always-dark editor.
+                        .environment(\.colorScheme, .dark)
                     }
                 } else {
                     EmptyStateView()
