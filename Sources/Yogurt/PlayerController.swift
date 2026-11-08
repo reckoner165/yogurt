@@ -43,7 +43,7 @@ final class PlayerController: ObservableObject {
         "[\(Self.format(currentTime))]"
     }
 
-    static func format(_ seconds: Double) -> String {
+    nonisolated static func format(_ seconds: Double) -> String {
         let total = Int(seconds.rounded(.down))
         let h = total / 3600
         let m = (total % 3600) / 60

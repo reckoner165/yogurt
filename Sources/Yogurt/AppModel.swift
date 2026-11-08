@@ -9,6 +9,7 @@ final class AppModel: ObservableObject {
     let player = PlayerController()
     let notes = NotesStore()
     let status = StatusCenter()
+    let mediaInfo = MediaInfoStore()
 
     @Published private(set) var mediaURL: URL?
     @Published private(set) var showMeter = false
@@ -27,6 +28,7 @@ final class AppModel: ObservableObject {
         let notesURL = NotesStore.notesURL(for: url)
         let hadNotes = FileManager.default.fileExists(atPath: notesURL.path)
         notes.open(mediaURL: url)
+        mediaInfo.load(url: url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         status.setIdle("notes/\(notesURL.lastPathComponent)")
         status.transient(
@@ -54,6 +56,16 @@ final class AppModel: ObservableObject {
             userInfo: ["text": marker + " "]
         )
         status.transient("Inserted \(marker)")
+    }
+
+    func insertMediaInfo() {
+        guard mediaURL != nil else { return }
+        NotificationCenter.default.post(
+            name: .yogurtInsertText,
+            object: nil,
+            userInfo: ["text": mediaInfo.info.markdown]
+        )
+        status.transient("Inserted file info into notes")
     }
 
     func toggleMeter() {

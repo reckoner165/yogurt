@@ -42,8 +42,7 @@ struct VUMeterContent: View {
         .padding(.top, 20)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Match AVPlayerView's audio-only placeholder grey; force dark so labels stay legible.
-        .background(Theme.mediaSurface)
+        // Sits on the translucent window backdrop; force dark so labels stay legible.
         .environment(\.colorScheme, .dark)
     }
 
